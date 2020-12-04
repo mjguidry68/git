@@ -439,70 +439,69 @@ test_expect_success 'push ref expression with non-existent, incomplete dest' '
 
 '
 
-test_expect_success 'push with HEAD' '
+for head in HEAD @
+do
 
-	mk_test testrepo heads/main &&
-	git checkout main &&
-	git push testrepo HEAD &&
-	check_push_result testrepo $the_commit heads/main
+	test_expect_success "push with $head" '
+		mk_test testrepo heads/main &&
+		git checkout main &&
+		git push testrepo $head &&
+		check_push_result testrepo $the_commit heads/main
+	'
 
-'
+	test_expect_success "push with $head nonexisting at remote" '
+		mk_test testrepo heads/main &&
+		git checkout -b local main &&
+		test_when_finished "git checkout main; git branch -D local" &&
+		git push testrepo $head &&
+		check_push_result testrepo $the_commit heads/local
+	'
 
-test_expect_success 'push with HEAD nonexisting at remote' '
+	test_expect_success "push with +$head" '
+		mk_test testrepo heads/main &&
+		git checkout -b local main &&
+		test_when_finished "git checkout main; git branch -D local" &&
+		git push testrepo main local &&
+		check_push_result testrepo $the_commit heads/main &&
+		check_push_result testrepo $the_commit heads/local &&
 
-	mk_test testrepo heads/main &&
-	git checkout -b local main &&
-	git push testrepo HEAD &&
-	check_push_result testrepo $the_commit heads/local
-'
+		# Without force rewinding should fail
+		git reset --hard $head^ &&
+		test_must_fail git push testrepo $head &&
+		check_push_result testrepo $the_commit heads/local &&
 
-test_expect_success 'push with +HEAD' '
+		# With force rewinding should succeed
+		git push testrepo +$head &&
+		check_push_result testrepo $the_first_commit heads/local
+	'
 
-	mk_test testrepo heads/main &&
-	git checkout main &&
-	git branch -D local &&
-	git checkout -b local &&
-	git push testrepo main local &&
-	check_push_result testrepo $the_commit heads/main &&
-	check_push_result testrepo $the_commit heads/local &&
+	test_expect_success "push $head with non-existent, incomplete dest" '
+		mk_test testrepo &&
+		git checkout main &&
+		git push testrepo $head:branch &&
+		check_push_result testrepo $the_commit heads/branch
 
-	# Without force rewinding should fail
-	git reset --hard HEAD^ &&
-	test_must_fail git push testrepo HEAD &&
-	check_push_result testrepo $the_commit heads/local &&
+	'
 
-	# With force rewinding should succeed
-	git push testrepo +HEAD &&
-	check_push_result testrepo $the_first_commit heads/local
+	test_expect_success "push with config remote.*.push = $head" '
+		mk_test testrepo heads/local &&
+		git checkout main &&
+		git branch -f local $the_commit &&
+		test_when_finished "git branch -D local" &&
+		(
+			cd testrepo &&
+			git checkout local &&
+			git reset --hard $the_first_commit
+		) &&
+		test_config remote.there.url testrepo &&
+		test_config remote.there.push $head &&
+		test_config branch.main.remote there &&
+		git push &&
+		check_push_result testrepo $the_commit heads/main &&
+		check_push_result testrepo $the_first_commit heads/local
+	'
 
-'
-
-test_expect_success 'push HEAD with non-existent, incomplete dest' '
-
-	mk_test testrepo &&
-	git checkout main &&
-	git push testrepo HEAD:branch &&
-	check_push_result testrepo $the_commit heads/branch
-
-'
-
-test_expect_success 'push with config remote.*.push = HEAD' '
-
-	mk_test testrepo heads/local &&
-	git checkout main &&
-	git branch -f local $the_commit &&
-	(
-		cd testrepo &&
-		git checkout local &&
-		git reset --hard $the_first_commit
-	) &&
-	test_config remote.there.url testrepo &&
-	test_config remote.there.push HEAD &&
-	test_config branch.main.remote there &&
-	git push &&
-	check_push_result testrepo $the_commit heads/main &&
-	check_push_result testrepo $the_first_commit heads/local
-'
+done
 
 test_expect_success 'push with remote.pushdefault' '
 	mk_test up_repo heads/main &&
